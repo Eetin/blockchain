@@ -1,7 +1,7 @@
-# blockchain Tutorials and Projects
+# Blockchain tutorials and projects
 
 ## simplebc
-Simple blockchain with http interface
+Simple blockchain with HTTP interface
 
 ## networking
 Simple TCP networking setup with blockchain broadcasting
