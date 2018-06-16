@@ -1,28 +1,28 @@
 package main
 
 import (
-	"io"
-	"net/http"
-	"time"
-
-	"os"
-
-	"log"
+	"sync"
 
 	"encoding/json"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"time"
 
 	"github.com/Eetin/blockchain"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
 
+var Blockchain []blockchain.Block
+
 type Message struct {
 	BPM int
 }
 
-var Blockchain []blockchain.Block
+var mutex = &sync.Mutex{}
 
 func main() {
 	err := godotenv.Load()
@@ -32,7 +32,8 @@ func main() {
 
 	go func() {
 		t := time.Now()
-		genesisBlock := blockchain.Block{
+		genesisBlock := blockchain.Block{}
+		genesisBlock = blockchain.Block{
 			Index:      0,
 			Timestamp:  t.String(),
 			BPM:        0,
@@ -43,10 +44,13 @@ func main() {
 		genesisBlock.Hash = blockchain.CalculateHash(genesisBlock)
 
 		spew.Dump(genesisBlock)
-		Blockchain = append(Blockchain, genesisBlock)
-	}()
 
+		mutex.Lock()
+		Blockchain = append(Blockchain, genesisBlock)
+		mutex.Unlock()
+	}()
 	log.Fatal(run())
+
 }
 
 func replaceChain(newBlocks []blockchain.Block) {
@@ -91,6 +95,7 @@ func handleGetBlockchain(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleWriteBlock(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	var m Message
 
 	decoder := json.NewDecoder(r.Body)
@@ -100,20 +105,15 @@ func handleWriteBlock(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	newBlock, err := blockchain.GenerateBlock(Blockchain[len(Blockchain)-1], m.BPM)
-	if err != nil {
-		respondWithJSON(w, r, http.StatusInternalServerError, m)
-		return
-	}
+	//ensure atomicity when creating new block
+	mutex.Lock()
+	newBlock := blockchain.GeneratePOWBlock(Blockchain[len(Blockchain)-1], m.BPM)
+	mutex.Unlock()
 
-	if !blockchain.IsBlockValid(newBlock, Blockchain[len(Blockchain)-1]) {
-		respondWithJSON(w, r, http.StatusInternalServerError, newBlock)
-		return
+	if blockchain.IsBlockValid(newBlock, Blockchain[len(Blockchain)-1]) {
+		Blockchain = append(Blockchain, newBlock)
+		spew.Dump(Blockchain)
 	}
-
-	newBlockchain := append(Blockchain, newBlock)
-	replaceChain(newBlockchain)
-	spew.Dump(Blockchain)
 
 	respondWithJSON(w, r, http.StatusCreated, newBlock)
 }

@@ -94,6 +94,7 @@ func handleConn(conn net.Conn) {
 			replaceChain(newBlockchain)
 
 			bcServer <- Blockchain
+
 			io.WriteString(conn, "\nEnter BPM: ")
 		}
 	}()
