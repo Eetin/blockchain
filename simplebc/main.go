@@ -40,7 +40,7 @@ func main() {
 			Difficulty: blockchain.Difficulty,
 			Nonce:      "",
 		}
-		genesisBlock.Hash = blockchain.CalculateHash(genesisBlock)
+		genesisBlock.Hash = blockchain.CalculateBlockHash(genesisBlock)
 
 		spew.Dump(genesisBlock)
 		Blockchain = append(Blockchain, genesisBlock)

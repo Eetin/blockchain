@@ -21,12 +21,34 @@ type Block struct {
 	Nonce      string
 }
 
-func CalculateHash(block Block) string {
-	record := strconv.Itoa(block.Index) + block.Timestamp + strconv.Itoa(block.BPM) + block.PrevHash + block.Nonce
+type POSBlock struct {
+	Index     int
+	Timestamp string
+	BPM       int
+	Hash      string
+	PrevHash  string
+	Validator string
+}
+
+// SHA256 hasing
+// CalculateHash is a simple SHA256 hashing function
+func CalculateHash(s string) string {
 	h := sha256.New()
-	h.Write([]byte(record))
+	h.Write([]byte(s))
 	hashed := h.Sum(nil)
 	return hex.EncodeToString(hashed)
+}
+
+// calculateBlockHash returns the hash of all block information
+func CalculateBlockHash(block Block) string {
+	record := strconv.Itoa(block.Index) + block.Timestamp + strconv.Itoa(block.BPM) + block.PrevHash + block.Nonce
+	return CalculateHash(record)
+}
+
+// calculatePOSBlockHash returns the hash of all pos block information
+func CalculatePOSBlockHash(block POSBlock) string {
+	record := string(block.Index) + block.Timestamp + string(block.BPM) + block.PrevHash
+	return CalculateHash(record)
 }
 
 func GenerateBlock(oldBlock Block, BPM int) (Block, error) {
@@ -38,7 +60,7 @@ func GenerateBlock(oldBlock Block, BPM int) (Block, error) {
 	newBlock.Timestamp = t.String()
 	newBlock.BPM = BPM
 	newBlock.PrevHash = oldBlock.Hash
-	newBlock.Hash = CalculateHash(newBlock)
+	newBlock.Hash = CalculateBlockHash(newBlock)
 
 	return newBlock, nil
 }
@@ -57,7 +79,7 @@ func GeneratePOWBlock(oldBlock Block, BPM int) Block {
 	for i := 0; ; i++ {
 		hex := fmt.Sprintf("%x", i)
 		newBlock.Nonce = hex
-		newBlockHash := CalculateHash(newBlock)
+		newBlockHash := CalculateBlockHash(newBlock)
 		if !IsHashValid(newBlockHash, newBlock.Difficulty) {
 			fmt.Println(newBlockHash, " do more work!")
 			time.Sleep(time.Second)
@@ -71,6 +93,21 @@ func GeneratePOWBlock(oldBlock Block, BPM int) Block {
 	return newBlock
 }
 
+func GeneratePOSBlock(oldBlock POSBlock, BPM int, address string) (POSBlock, error) {
+	var newBlock POSBlock
+
+	t := time.Now()
+
+	newBlock.Index = oldBlock.Index + 1
+	newBlock.Timestamp = t.String()
+	newBlock.BPM = BPM
+	newBlock.PrevHash = oldBlock.Hash
+	newBlock.Hash = CalculatePOSBlockHash(newBlock)
+	newBlock.Validator = address
+
+	return newBlock, nil
+}
+
 func IsBlockValid(newBlock, oldBlock Block) bool {
 	if oldBlock.Index+1 != newBlock.Index {
 		return false
@@ -80,7 +117,23 @@ func IsBlockValid(newBlock, oldBlock Block) bool {
 		return false
 	}
 
-	if CalculateHash(newBlock) != newBlock.Hash {
+	if CalculateBlockHash(newBlock) != newBlock.Hash {
+		return false
+	}
+
+	return true
+}
+
+func IsPOSBlockValid(newBlock, oldBlock POSBlock) bool {
+	if oldBlock.Index+1 != newBlock.Index {
+		return false
+	}
+
+	if oldBlock.Hash != newBlock.PrevHash {
+		return false
+	}
+
+	if CalculatePOSBlockHash(newBlock) != newBlock.Hash {
 		return false
 	}
 
